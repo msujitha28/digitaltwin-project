@@ -85,7 +85,6 @@ const nextJk = (i: Inp, _p: Inp, q: ModelBit): ModelBit => {
   if (i.K) return 0
   return q
 }
-const nextDff = (i: Inp, p: Inp, q: ModelBit): ModelBit => (p.CLK === 0 && i.CLK === 1 ? i.D : q)
 
 /* ------------------------------------------------------------------ */
 /* Scenario helpers                                                    */
@@ -447,113 +446,12 @@ const jkLatch: CircuitDef = (() => {
   }
 })()
 
-type Pt = [number, number]
-
-/** Master-slave D flip-flop, shifted right by dx. `d` is the net feeding its D pin. */
-function msBody(dx: number, d: string) {
-  const dn = `${d}N`
-  const P = (pts: Pt[]): Pt[] => pts.map(([x, y]) => [x + dx, y])
-  const m = core('M', 300 + dx, 80, 'NAND', 'm1', 'm2', 'QM', 'QMN', false)
-  const s = core('S', 800 + dx, 80, 'NAND', 's1', 's2', 'Q', 'QN')
-  const gates: GateDef[] = [
-    gate('INV1', 'NOT', 96 + dx, 240, ['CLK'], 'CN'),
-    gate('INV2', 'NOT', 96 + dx, 196, [d], dn),
-    gate('M1', 'NAND', 170 + dx, 72, [d, 'CN'], 'm1'),
-    gate('M2', 'NAND', 170 + dx, 188, ['CN', dn], 'm2'),
-    ...m.gates,
-    gate('S1', 'NAND', 670 + dx, 72, ['QM', 'CLK'], 's1'),
-    gate('S2', 'NAND', 670 + dx, 188, ['CLK', 'QMN'], 's2'),
-    ...s.gates,
-  ]
-  const wires: WireDef[] = [
-    { net: d, pts: P([[70, 64], [170, 64]]) },
-    { net: d, pts: P([[82, 64], [82, 196], [96, 196]]) },
-    { net: dn, pts: P([[140, 196], [170, 196]]) },
-    { net: 'CLK', pts: [[70, 240], [96 + dx, 240]] },
-    { net: 'CLK', pts: [[80, 240], [80, 296], [650 + dx, 296], [650 + dx, 80], [670 + dx, 80]] },
-    { net: 'CLK', pts: P([[650, 180], [670, 180]]) },
-    { net: 'CN', pts: P([[140, 240], [150, 240], [150, 80], [170, 80]]) },
-    { net: 'CN', pts: P([[150, 180], [170, 180]]) },
-    { net: 'm1', pts: P([[230, 72], [300, 72]]) },
-    { net: 'm2', pts: P([[230, 188], [300, 188]]) },
-    { net: 'QM', pts: P([[360, 80], [430, 80], [430, 64], [670, 64]]) },
-    { net: 'QMN', pts: P([[360, 180], [442, 180], [442, 196], [670, 196]]) },
-    { net: 's1', pts: P([[730, 72], [800, 72]]) },
-    { net: 's2', pts: P([[730, 188], [800, 188]]) },
-    ...m.wires,
-    ...s.wires,
-  ]
-  const dots: DotDef[] = [
-    { net: d, x: 82 + dx, y: 64 },
-    { net: 'CLK', x: 80, y: 240 },
-    { net: 'CLK', x: 650 + dx, y: 180 },
-    { net: 'CN', x: 150 + dx, y: 180 },
-    ...m.dots,
-    ...s.dots,
-  ]
-  const boxes = [
-    { x: 144 + dx, y: 30, w: 316, h: 214, label: 'MASTER · open while CLK = 0' },
-    { x: 644 + dx, y: 30, w: 226, h: 214, label: 'SLAVE · open while CLK = 1' },
-  ]
-  const init: Record<string, Bit> = {
-    CLK: 0, CN: 1, [d]: 0, [dn]: 1, m1: 1, m2: 0, QM: 0, QMN: 1, s1: 1, s2: 1, Q: 0, QN: 1,
-  }
-  return { gates, wires, dots, boxes, init }
-}
-
 /** Table whose rows never highlight (reference tables such as excitation tables). */
 const tbl = (title: string, columns: string[], data: (string | number)[][]): TableDef => ({
   title,
   columns,
   rows: data.map((cells) => row(cells, () => false)),
 })
-
-const dff: CircuitDef = (() => {
-  const b = msBody(0, 'D')
-  return {
-    id: 'd-flip-flop',
-    name: 'D flip-flop (positive edge)',
-    tag: 'Edge triggered',
-    blurb: 'Two D latches in series. The master is open while CLK is 0 and the slave is open while CLK is 1, so Q only changes on the rising edge.',
-    notes: [
-      'On the rising edge the master closes and holds D, then the slave opens and passes that held value to Q.',
-      'D changes while CLK is high or low have no effect on Q until the next rising edge.',
-    ],
-    viewBox: [990, 320],
-    inputs: [
-      { net: 'D', label: 'D', x: 70, y: 64 },
-      { net: 'CLK', label: 'CLK', x: 70, y: 240 },
-    ],
-    outputs: [
-      { net: 'Q', label: 'Q', x: 930, y: 80 },
-      { net: 'QN', label: 'Q′', x: 930, y: 180 },
-    ],
-    clock: 'CLK',
-    boxes: b.boxes,
-    gates: b.gates,
-    wires: b.wires,
-    dots: b.dots,
-    init: b.init,
-    next: nextDff,
-    qNet: 'Q',
-    qnNet: 'QN',
-    columns: ['CLK', 'D', 'Q next'],
-    rows: [
-      row(['↑', 0, 0], (i, r) => !!r.CLK && !i.D),
-      row(['↑', 1, 1], (i, r) => !!r.CLK && !!i.D),
-      row(['no ↑', 'X', 'Q (hold)'], (_i, r) => !r.CLK),
-    ],
-    tableTitle: 'Truth table',
-    equation: 'Q(n+1) = D',
-    extraTables: [
-      tbl('Characteristic table', ['D', 'Qn', 'Qn+1'], [[0, 0, 0], [0, 1, 0], [1, 0, 1], [1, 1, 1]]),
-      tbl('Excitation table', ['Qn', 'Qn+1', 'D'], [[0, 0, 0], [0, 1, 1], [1, 0, 0], [1, 1, 1]]),
-    ],
-    scenario: [...dataPulses(), ...clockPulses('CLK')],
-    scenarioLength: 140,
-    scenarioCaption: 'Q samples D only at the three rising edges (10, 50 and 90 ns).',
-  }
-})()
 
 /* ---- Clocked SR, JK, D and T flip-flops, drawn as in the course slides (4 NAND gates) ---- */
 
@@ -684,7 +582,7 @@ const dClocked: CircuitDef = {
     'Two steering NAND gates and a cross-coupled NAND pair, with an inverter so S and R are always opposite. Q takes the value of D.',
   notes: [
     'CLK = 0: no change. CLK = 1 and D = 0: reset. CLK = 1 and D = 1: set.',
-    'This gate arrangement is transparent while CLK is high. For a flip-flop that samples only on the edge, see the master-slave version in the Latch vs flip-flop comparison.',
+    'This gate arrangement is transparent while CLK is high, so Q follows D for the whole clock pulse.',
   ],
   columns: ['CLK', 'D', 'Q next', 'State'],
   rows: [
@@ -786,45 +684,14 @@ function single(c: CircuitDef): ViewDef {
   }
 }
 
-const latchForCompare = dLatch('CLK')
-
-const compare: ViewDef = {
-  id: 'compare',
-  name: 'Latch vs flip-flop',
-  tag: 'Comparison',
-  blurb: 'The same D and CLK drive a level-sensitive D latch and a positive-edge flip-flop, so you can see exactly where they differ.',
-  notes: [
-    'The latch follows D for the whole time CLK is high, so a narrow pulse on D shows up on Q.',
-    'The flip-flop samples D once, at the rising edge, and ignores everything else.',
-  ],
-  circuits: [latchForCompare, dff],
-  traces: [
-    { label: 'D', bench: 0, net: 'D', kind: 'in' },
-    { label: 'CLK', bench: 0, net: 'CLK', kind: 'clk' },
-    { label: 'Q latch', bench: 0, net: 'Q', kind: 'out' },
-    { label: 'Q flip-flop', bench: 1, net: 'Q', kind: 'out' },
-  ],
-  clock: 'CLK',
-  scenario: [...dataPulses(), ...clockPulses('CLK')],
-  scenarioLength: 140,
-  scenarioCaption: 'The D pulse at 5–18 ns spans the first edge. The latch passes the short pulse, the flip-flop captures a 1 and holds it.',
-  columns: ['Element', 'Q changes when', 'D during that time'],
-  rows: [
-    row(['D latch', 'CLK = 1 (level)', 'Passed through'], (i) => !!i.CLK),
-    row(['D flip-flop', 'CLK rises (edge)', 'Sampled once'], (_i, r) => !!r.CLK),
-  ],
-}
-
 export const VIEWS: ViewDef[] = [
   single(srNor),
   single(srNand),
   single(gatedSr),
   single(dLatch('EN')),
   single(jkLatch),
-  single(dff),
   single(srClocked),
   single(jkClocked),
   single(dClocked),
   single(tClocked),
-  compare,
 ]

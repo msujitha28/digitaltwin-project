@@ -41,17 +41,5 @@ for (const view of VIEWS) {
   console.log(`\nJK race-around: Q toggled ${q.length - 1} times in 40 ns`)
   expect(q.length - 1 >= 6, 'JK latch should toggle repeatedly with J=K=1 and CLK high')
 }
-{
-  const v = VIEWS.find((x) => x.id === 'compare')!
-  const s = new Session(v, 2)
-  s.schedule(v.scenario, 0)
-  s.advance(140)
-  const [latch, ff] = s.benches
-  const lq = latch.sim.history['Q'].length - 1
-  const fq = ff.sim.history['Q'].length - 1
-  console.log(`\nCompare: latch Q changes=${lq}, flip-flop Q changes=${fq}`)
-  expect(lq > fq, 'latch should change more often than the flip-flop on the same inputs')
-}
-
 console.log(failures ? `\n${failures} failure(s)` : '\nAll engine checks passed')
 if (failures) throw new Error(`${failures} engine check(s) failed`)

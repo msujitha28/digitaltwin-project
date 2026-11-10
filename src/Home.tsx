@@ -20,8 +20,8 @@ const CATEGORIES: Category[] = [
   {
     id: 'flip-flops',
     name: 'Flip-flops',
-    blurb: 'Edge-triggered storage: SR, JK, D and T flip-flops, plus a latch vs flip-flop comparison.',
-    views: ['sr-ff', 'jk-ff', 'd-ff', 't-ff', 'compare'],
+    blurb: 'Edge-triggered storage: SR, JK, D and T flip-flops.',
+    views: ['sr-ff', 'jk-ff', 'd-ff', 't-ff'],
     intro: [
       'Flip-flops are widely used for storing binary information in electronic systems.',
       'They are edge-triggered: a clock signal controls exactly when the state may change.',
